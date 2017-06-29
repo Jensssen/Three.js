@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo 3</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: white;
+        }
+    </style>
+    <form>
+        <input type="button" onclick=window.open("index.html","_self") value="Back"/>
+    </form>
+
+    <div id="content"></div>
+
+
+</head>
+
+<body>
+
+<canvas id="myCanvas"></canvas>
+<script src="lib/three.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script src="lib/OrbitControls.js"></script>
+
+<script type="text/javascript">
+    var axes = {x: 0, y: 0, z: 0, material_axes_x: 0, material_axes_y: 0, material_axes_z: 0};
+    var face = {X_Pos: 0, Y_Pos: 0};
+    var object_pos = {x: 0, y: 0, z: -100};
+    var mesh = {object1: 0, object2:0, object3:0};
+
+    var content = document.getElementById('content');
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+       // content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+    // RENDERER
+    renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById('myCanvas')
+    });
+    renderer.setClearColor(0xffffff);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+
+    // SCENE
+    scene = new THREE.Scene();
+
+
+    // CAMERA
+    camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+    //camera.rotation.x = 1.5708;
+    camera.position.set(0, 0, 400);
+    //var newCamera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+
+
+    // LIGHT
+    var ambient_light = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient_light);
+    var point_light = new THREE.PointLight(0xffffff, 0.5);
+    scene.add(point_light);
+
+
+    // MATERIAL
+    import_all_materials();
+
+
+    // Controls
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.update();
+
+
+    // GEOMETRY
+    //import_axes(10);
+    import_background();
+
+    var texture = new THREE.ImageUtils.loadTexture('textures/metal.jpg' );
+    var geometry = new THREE.BoxBufferGeometry( 25, 25, 25 );
+    var material = new THREE.MeshBasicMaterial( { map: texture } );
+    mesh.object1 = new THREE.Mesh( geometry, material );
+    mesh.object1.position.set(100,30,-150);
+    scene.add( mesh.object1 );
+
+    var texture = new THREE.ImageUtils.loadTexture('textures/metal.jpg' );
+    var geometry = new THREE.BoxBufferGeometry( 60, 60, 60 );
+    var material = new THREE.MeshBasicMaterial( { map: texture } );
+    mesh.object2 = new THREE.Mesh( geometry, material );
+    mesh.object2.position.set(0,0,0);
+    scene.add( mesh.object2 );
+
+    var texture = new THREE.ImageUtils.loadTexture('textures/metal.jpg' );
+    var geometry = new THREE.BoxBufferGeometry( 25, 25, 25 );
+    var material = new THREE.MeshBasicMaterial( { map: texture } );
+    mesh.object3 = new THREE.Mesh( geometry, material );
+    mesh.object3.position.set(-120,-50,-200);
+    scene.add( mesh.object3 );
+
+
+
+    var x = 0;
+    var theta = 0;
+    //RENDER LOOP
+    render();
+    function render() {
+        var r = Date.now() * 0.0005;
+
+        mesh.object1.position.x = 40 + 20 * Math.cos( r );
+        mesh.object1.position.y = 20 + 20 * Math.sin( r );
+        mesh.object1.position.z = -150 + 20 * Math.sin( r );
+
+
+
+
+        theta += 0.5;
+
+       // camera.position.x = 200 * Math.sin( THREE.Math.degToRad( theta ) );
+       // camera.position.y = 200 * Math.cos( THREE.Math.degToRad( theta ) );
+        camera.position.x = object_pos.x;
+        camera.position.y = object_pos.y;
+        camera.lookAt( scene.position );
+
+        renderer.render(scene, camera);
+        // This method tells the browser that you wish to perform an animation and requestes that the browser
+        // calls a specified function to update an animation before the next repaint.
+        requestAnimationFrame(render);
+    }
+
+
+</script>
+
+</body>
+</html>

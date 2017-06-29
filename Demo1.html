@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo 1</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background: white;
+        }
+    </style>
+</head>
+
+<body>
+<form>
+    <input type="button" onclick=window.open("index.html","_self") value="Back"/>
+    This Demo is our minimum Three.js file. It has OrbitControls and xyz axes in its origin. Nothing else!
+</form>
+<canvas id = "myCanvas"></canvas>
+<script src="lib/three.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script src="lib/OrbitControls.js"></script>
+
+<script>
+    var axes = {x:0, y:0, z:0, material_axes_x:0, material_axes_y:0, material_axes_z:0};
+
+
+    // RENDERER
+    renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById('myCanvas')
+    });
+    renderer.setClearColor(0xffffff);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+
+    // SCENE
+    scene = new THREE.Scene();
+
+
+    // CAMERA
+    camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+    //camera.rotation.x = 1.5708;
+    camera.position.set(0, 0, 800);
+    var newCamera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+
+
+    // LIGHT
+    var ambient_light = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient_light);
+    var point_light = new THREE.PointLight(0xffffff, 0.5);
+    scene.add(point_light);
+
+
+    // MATERIAL
+    import_all_materials();
+
+
+    // Controls
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.update();
+
+
+    // GEOMETRY
+    import_axes(20);
+
+
+    //RENDER LOOP
+    render();
+    function render() {
+
+        renderer.render(scene,camera);
+        // This method tells the browser that you wish to perform an animation and requestes that the browser
+        // calls a specified function to update an animation before the next repaint.
+        requestAnimationFrame(render);
+    }
+
+
+</script>
+
+</body>
+</html>

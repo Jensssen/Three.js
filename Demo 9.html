@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - lights - physical lights</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background-color: #000;
+            margin: 0px;
+            overflow: hidden;
+        }
+        a {
+            color: #ff0080;
+            text-decoration: none;
+        }
+        a:hover {
+            color: #0080ff;
+        }
+        #switch_to_headtracking {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        #Button_back {
+            position: absolute;
+            right: 20px;
+            top: 50px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container"></div>
+<input id="switch_to_headtracking" type="button" value="Switch to Headtracking" onclick="lightButtonHandler()">
+<input id="Button_back" type="button" value="Back" onclick=window.open("index.html","_self")>
+
+
+<script src="lib/three.js"></script>
+<script src="js/stats.min.js"></script>
+<script src="lib/dat.gui.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script>
+    if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+    var camera, scene, renderer,
+        bulbLight, windowlight, bulbMat, hemiLight,
+        object, loader, stats;
+    var ballMat, cubeMat, floorMat;
+    var axes = {x:0, y:0, z:0, material_axes_x:0, material_axes_y:0, material_axes_z:0};
+
+    // ref for lumens: http://www.power-sure.com/lumens.htm
+    var bulbLuminousPowers = {
+        "110000 lm (1000W)": 110000,
+        "3500 lm (300W)": 3500,
+        "1700 lm (100W)": 1700,
+        "800 lm (60W)": 800,
+        "400 lm (40W)": 400,
+        "180 lm (25W)": 180,
+        "20 lm (4W)": 20,
+        "Off": 0
+    };
+    // ref for solar irradiances: https://en.wikipedia.org/wiki/Lux
+    var hemiLuminousIrradiances = {
+        "0.0001 lx (Moonless Night)": 0.0001,
+        "0.002 lx (Night Airglow)": 0.002,
+        "0.5 lx (Full Moon)": 0.5,
+        "3.4 lx (City Twilight)": 3.4,
+        "50 lx (Living Room)": 50,
+        "100 lx (Very Overcast)": 100,
+        "350 lx (Office Room)": 350,
+        "400 lx (Sunrise/Sunset)": 400,
+        "1000 lx (Overcast)": 1000,
+        "18000 lx (Daylight)": 18000,
+        "50000 lx (Direct Sun)": 50000
+    };
+    var params = {
+        shadows: true,
+        exposure: 0.68,
+        bulbPower: Object.keys( bulbLuminousPowers )[ 0 ],
+        hemiIrradiance: Object.keys( hemiLuminousIrradiances )[2]
+    };
+    var clock = new THREE.Clock();
+    var headtracking = 0;
+
+    //////////////////////////////////////////////////
+    // WEB SOCKETS
+    //////////////////////////////////////////////////
+    var object_pos = {x: 0, y: 0, z: -100};
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+        // content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+    init();
+    animate();
+
+
+    function init() {
+        var container = document.getElementById( 'container' );
+
+
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        renderer.physicallyCorrectLights = true;
+        renderer.gammaInput = true;
+        renderer.gammaOutput = true;
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+
+
+        stats = new Stats();
+        container.appendChild( stats.dom );
+
+
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+        camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 1500 );
+        camera.position.x = 0;
+        camera.position.z = 80;
+        camera.position.y = 3;
+
+        //////////////////////////////////////////////////
+        // CONTROLS
+        //////////////////////////////////////////////////
+        var controls = new THREE.OrbitControls( camera, renderer.domElement );
+        controls.target.set( 0, 0, 0 );
+        controls.update();
+
+
+        //////////////////////////////////////////////////
+        // LIGHT BULB
+        //////////////////////////////////////////////////
+
+
+        hemiLight = new THREE.HemisphereLight( 0xddeeff, 0x0f0e0d, 0.02 );
+        scene.add( hemiLight );
+
+
+        //////////////////////////////////////////////////
+        // FLOR MATERIAL
+        //////////////////////////////////////////////////
+        floorMat = new THREE.MeshStandardMaterial( {
+            roughness: 0.8,
+            color: 0xffffff,
+            metalness: 0.2,
+            bumpScale: 0.0005
+        });
+
+
+        //////////////////////////////////////////////////
+        // TEXTURES
+        //////////////////////////////////////////////////
+        var textureLoader = new THREE.TextureLoader();
+        textureLoader.load( "textures/hardwood2_diffuse.jpg", function( map ) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 4;
+            map.repeat.set( 5, 12 );
+            floorMat.map = map;
+            floorMat.needsUpdate = true;
+        } );
+
+        textureLoader.load( "textures/hardwood2_bump.jpg", function( map ) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 4;
+            map.repeat.set( 5, 12 );
+            floorMat.bumpMap = map;
+            floorMat.needsUpdate = true;
+        } );
+
+        textureLoader.load( "textures/hardwood2_roughness.jpg", function( map ) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 4;
+            map.repeat.set( 5, 12 );
+            floorMat.roughnessMap = map;
+            floorMat.needsUpdate = true;
+        } );
+
+        cubeMat = new THREE.MeshStandardMaterial( {
+            roughness: 0.7,
+            color: 0xffffff,
+            bumpScale: 0.002,
+            metalness: 0.2
+        });
+        textureLoader.load( "textures/brick_diffuse.jpg", function( map ) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 4;
+            map.repeat.set( 1, 1 );
+            cubeMat.map = map;
+            cubeMat.needsUpdate = true;
+        } );
+        textureLoader.load( "textures/brick_bump.jpg", function( map ) {
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+            map.anisotropy = 4;
+            map.repeat.set( 1, 1 );
+            cubeMat.bumpMap = map;
+            cubeMat.needsUpdate = true;
+        } );
+        ballMat = new THREE.MeshStandardMaterial( {
+            color: 0xffffff,
+            roughness: 0.5,
+            metalness: 1.0
+        });
+        textureLoader.load( "textures/earth_atmos_2048.jpg", function( map ) {
+            map.anisotropy = 4;
+            ballMat.map = map;
+            ballMat.needsUpdate = true;
+        } );
+        textureLoader.load( "textures/earth_specular_2048.jpg", function( map ) {
+            map.anisotropy = 4;
+            ballMat.metalnessMap = map;
+            ballMat.needsUpdate = true;
+        } );
+
+
+        //////////////////////////////////////////////////
+        // ALL GEOMETRIES
+        //////////////////////////////////////////////////
+        var floorGeometry = new THREE.PlaneBufferGeometry( 150, 150 );
+        var floorMesh = new THREE.Mesh( floorGeometry, floorMat );
+        floorMesh.receiveShadow = true;
+        floorMesh.position.set(0,-20,0);
+        floorMesh.rotation.x = -Math.PI / 2.0;
+        floorMesh.rotation.z = -Math.PI / 2.0;
+        scene.add( floorMesh );
+
+        var ballGeometry = new THREE.SphereGeometry( 0.5, 32, 32 );
+        var ballMesh = new THREE.Mesh( ballGeometry, ballMat );
+        ballMesh.position.set( 1, 0.5, 1 );
+        ballMesh.rotation.y = Math.PI;
+        ballMesh.castShadow = true;
+        scene.add( ballMesh );
+
+        var boxGeometry = new THREE.BoxGeometry( 5, 5, 100 );
+        var boxMesh = new THREE.Mesh( boxGeometry, cubeMat );
+        boxMesh.position.set( -50, -15, 0 );
+        boxMesh.castShadow = true;
+        scene.add( boxMesh );
+
+        var boxMesh2 = new THREE.Mesh( boxGeometry, cubeMat );
+        boxMesh2.position.set( 0, 0.25, -5 );
+        boxMesh2.castShadow = true;
+        scene.add( boxMesh2 );
+
+        var background1 = new THREE.PlaneGeometry( 150, 65, 32 );
+        var material = new THREE.MeshBasicMaterial( {color: 0x6edf75,side: THREE.DoubleSide} );
+        var material1 = new THREE.MeshBasicMaterial( {color: 0x2f6abd,side: THREE.DoubleSide} );
+        var material2 = new THREE.MeshBasicMaterial( {color: 0x74226c,side: THREE.DoubleSide} );
+        var material3 = new THREE.MeshBasicMaterial( {color: 0xffffff,side: THREE.DoubleSide} );
+        var mesch_background1 = new THREE.Mesh( background1, material );
+        mesch_background1.position.set(18,8,-60);
+        scene.add( mesch_background1 );
+
+        var dach = new THREE.PlaneGeometry( 150, 150, 32 );
+        var mesh_dach = new THREE.Mesh( dach, material1 );
+        mesh_dach.position.set(12,34,15);
+        mesh_dach.rotation.x = Math.PI / 2.0;
+        scene.add( mesh_dach );
+
+        // RECHTE SEITE
+        var rechts1 = new THREE.PlaneGeometry( 70, 20, 32 );
+        var mesh_rechts1 = new THREE.Mesh( rechts1, material2 );
+        mesh_rechts1.position.set(49,30,-25);
+        mesh_rechts1.rotation.y = -Math.PI / 2.0;
+        scene.add( mesh_rechts1 );
+
+        var rechts2 = new THREE.PlaneGeometry( 46, 50, 32 );
+        var mesh_rechts2 = new THREE.Mesh( rechts2, material2 );
+        mesh_rechts2.position.set(49,0,-13);
+        mesh_rechts2.rotation.y = -Math.PI / 2.0;
+        scene.add( mesh_rechts2 );
+
+        var rechts3 = new THREE.PlaneGeometry( 50, 80, 32 );
+        var mesh_rechts3 = new THREE.Mesh( rechts3, material );
+        mesh_rechts3.position.set(74,0,10);
+        scene.add( mesh_rechts3 );
+
+        var dach2 = new THREE.PlaneGeometry( 30, 30, 32 );
+        var mesh_dach2 = new THREE.Mesh( dach2, material3 );
+        mesh_dach2.position.set(64,20,-45);
+        mesh_dach2.rotation.x = -Math.PI / 2.0;
+        scene.add( mesh_dach2 );
+
+        // LINKE SEITE
+        var links1 = new THREE.PlaneGeometry( 90, 20, 32 );
+        var mesh_links1 = new THREE.Mesh( links1, cubeMat );
+        mesh_links1.position.set(-57,34,-25);
+        mesh_links1.rotation.y = Math.PI / 2.0;
+        mesh_links1.castShadow = true;
+        scene.add( mesh_links1 );
+
+        var linke2 = new THREE.PlaneGeometry( 17, 80, 32 );
+        var mesh_links2 = new THREE.Mesh( linke2, cubeMat );
+        mesh_links2.position.set(-57,0,-23);
+        mesh_links2.rotation.y = Math.PI / 2.0;
+        mesh_links2.castShadow = true;
+        scene.add( mesh_links2 );
+        var mesh_links3 = new THREE.Mesh( linke2, cubeMat );
+        mesh_links3.position.set(-57,0,-63);
+        mesh_links3.rotation.y = Math.PI / 2.0;
+        mesh_links3.castShadow = true;
+        scene.add( mesh_links3 );
+        var mesh_links4 = new THREE.Mesh( linke2, cubeMat );
+        mesh_links4.position.set(-57,0,14);
+        mesh_links4.rotation.y = Math.PI / 2.0;
+        mesh_links4.castShadow = true;
+        scene.add( mesh_links4 );
+        var links5 = new THREE.PlaneGeometry( 20, 60, 32 );
+        var mesh_links5 = new THREE.Mesh( links5, material1 );
+        mesh_links5.position.set(-67,0,-54.5);
+        mesh_links5.castShadow = true;
+        scene.add( mesh_links5 );
+
+        var mesh_links6 = new THREE.Mesh( links5, material1 );
+        mesh_links6.position.set(-67,0,-14.5);
+        mesh_links6.castShadow = true;
+        scene.add( mesh_links6 );
+
+
+
+        windowlight = new THREE.PointLight( 0xffee88, 1, 100, 2 );
+        bulbMat = new THREE.MeshStandardMaterial( {
+            emissive: 0xffffee,
+            emissiveIntensity: 1,
+            color: 0x000000,
+            side: THREE.DoubleSide
+        });
+
+        var window_light = new THREE.PlaneGeometry( 150, 80, 16 );
+        windowlight.add( new THREE.Mesh( window_light, bulbMat ) );
+        windowlight.position.set( -62, 0, 0 );
+        windowlight.rotation.y = Math.PI /2;
+        windowlight.castShadow = true;
+        scene.add( windowlight );
+
+
+
+
+
+
+
+
+        container.appendChild( renderer.domElement );
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+        //////////////////////////////////////////////////
+        // GUI
+        //////////////////////////////////////////////////
+        var gui = new dat.GUI();
+        gui.add( params, 'hemiIrradiance', Object.keys( hemiLuminousIrradiances ) );
+        gui.add( params, 'bulbPower', Object.keys( bulbLuminousPowers ) );
+        gui.add( params, 'exposure', 0, 1 );
+        gui.add( params, 'shadows' );
+        gui.close();
+    }
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+    //
+    function animate() {
+        requestAnimationFrame( animate );
+        render();
+    }
+
+    var previousShadowMap = false;
+    function render() {
+        renderer.toneMappingExposure = Math.pow( params.exposure, 5.0 ); // to allow for very bright scenes.
+        renderer.shadowMap.enabled = params.shadows;
+        windowlight.castShadow = params.shadows;
+
+        if( params.shadows !== previousShadowMap ) {
+            ballMat.needsUpdate = true;
+            cubeMat.needsUpdate = true;
+            floorMat.needsUpdate = true;
+            previousShadowMap = params.shadows;
+        }
+        //////////////////////////////////////////////////
+        // Turn Head Tracking on and off
+        //////////////////////////////////////////////////
+        if(headtracking == 1){
+            camera.position.x = object_pos.x/10;
+            camera.position.y = object_pos.y/10;
+            camera.lookAt( scene.position );
+            camera.position.z = 80;
+
+        }
+        windowlight.power = bulbLuminousPowers[ params.bulbPower ];
+        bulbMat.emissiveIntensity = windowlight.intensity / Math.pow( 0.02, 2.0 ); // convert from intensity to irradiance at bulb surface
+        hemiLight.intensity = hemiLuminousIrradiances[ params.hemiIrradiance ];
+        var time = Date.now() * 0.0005;
+        //windowlight.position.x = Math.cos( time ) * 7.5 + 12.5;
+        renderer.render( scene, camera );
+        stats.update();
+    }
+    function lightButtonHandler() {
+        if(headtracking == 0){
+            headtracking = 1;
+        }else{
+            headtracking = 0;
+        }
+    }
+</script>
+</body>
+</html>

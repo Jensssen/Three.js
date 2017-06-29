@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Demo 8</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background:#000;
+            color:#fff;
+            padding:0;
+            margin:0;
+            overflow:hidden;
+            font-family:georgia;
+            text-align:center;
+        }
+        a { color:skyblue; text-decoration:none }
+        #switch_to_headtracking {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        #Button_back {
+            position: absolute;
+            right: 20px;
+            top: 50px;
+        }
+
+    </style>
+</head>
+
+<body>
+<div id="container"></div>
+<input id="switch_to_headtracking" type="button" value="Switch to Headtracking" onclick="lightButtonHandler()">
+<input id="Button_back" type="button" value="Back" onclick=window.open("index.html","_self")>
+
+<script src="lib/three.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="js/threex.rendererstats.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script src="lib/dat.gui.min.js"></script>
+
+
+
+<script>
+    var cameraCube;
+    var cubeMesh;
+    var camera, controls, scene, renderer;
+    var aspect = window.innerWidth / window.innerHeight;
+    var cube, sceneCube, textureCube;
+    // Initialise visualised console
+    var my_console  = new THREEx.RendererStats();
+    var headtracking = 0;
+    var object_pos = {x: 0, y: 0, z: -100};
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    var axes = {x:0, y:0, z:0, material_axes_x:0, material_axes_y:0, material_axes_z:0};
+
+
+
+    //////////////////////////////////////////////////
+    // WEB SOCKETS
+    //////////////////////////////////////////////////
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+        // content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+    init();
+    animate();
+    function init() {
+
+        var container = document.getElementById( 'container' );
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer = new THREE.WebGLRenderer();
+        renderer.autoClear = false;
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        container.appendChild( renderer.domElement );
+
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+        sceneCube = new THREE.Scene();
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+
+        camera = new THREE.PerspectiveCamera( 70, aspect, 1, 100000 );
+        camera.position.set( 0, 0, 1000 );
+        cameraCube = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 100000 );
+
+        //////////////////////////////////////////////////
+        // CONTROLS
+        //////////////////////////////////////////////////
+        controls = new THREE.OrbitControls( camera );
+        controls.minDistance = 500;
+        controls.maxDistance = 2500;
+
+        //////////////////////////////////////////////////
+        // LIGHT
+        //////////////////////////////////////////////////
+        var ambient = new THREE.AmbientLight( 0xffffff );
+        scene.add( ambient );
+
+
+        //////////////////////////////////////////////////
+        // TEXTURES
+        //////////////////////////////////////////////////
+        var r = "textures/cube/";
+        var urls = [ r + "posx.jpg", r + "negx.jpg",
+            r + "posy.jpg", r + "negy.jpg",
+            r + "posz.jpg", r + "negz.jpg" ];
+        textureCube = new THREE.CubeTextureLoader().load( urls );
+        textureCube.format = THREE.RGBFormat;
+        textureCube.mapping = THREE.CubeReflectionMapping;
+
+
+        //////////////////////////////////////////////////
+        // GEOMETRY -> WORLD (CUBE)
+        //////////////////////////////////////////////////
+        var cubeShader = THREE.ShaderLib[ "cube" ];
+        var cubeMaterial = new THREE.ShaderMaterial( {
+            fragmentShader: cubeShader.fragmentShader,
+            vertexShader: cubeShader.vertexShader,
+            uniforms: cubeShader.uniforms,
+            depthWrite: false,
+            side: THREE.BackSide
+        } );
+        cubeMaterial.uniforms[ "tCube" ].value = textureCube;
+        cubeMesh = new THREE.Mesh( new THREE.BoxBufferGeometry( 100, 100, 100 ), cubeMaterial );
+        sceneCube.add( cubeMesh );
+
+
+        //////////////////////////////////////////////////
+        // GEOMETRY
+        //////////////////////////////////////////////////
+
+
+        import_all_materials();
+        import_axes(20);
+
+
+
+
+
+        //////////////////////////////////////////////////
+        // CSS positioning of the visualised console
+        //////////////////////////////////////////////////
+        my_console.domElement.style.position   = 'absolute'
+        my_console.domElement.style.left  = '0px'
+        my_console.domElement.style.bottom    = '0px'
+
+        renderer.setFaceCulling( THREE.CullFaceNone );
+        document.body.appendChild( renderer.domElement );
+        document.body.appendChild( my_console.domElement )
+        window.addEventListener( 'resize', onWindowResize, false );
+    }
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+    //
+    function animate() {
+        requestAnimationFrame( animate );
+        render();
+        controls.update();
+    }
+    function render() {
+        //////////////////////////////////////////////////
+        // UPDATE My Console
+        //////////////////////////////////////////////////
+        my_console.update(renderer);
+
+        //////////////////////////////////////////////////
+        // Turn Head Tracking on and off
+        //////////////////////////////////////////////////
+        if(headtracking == 1){
+            camera.position.x = object_pos.x;
+            camera.position.y = object_pos.y;
+            camera.lookAt( scene.position );
+            camera.position.z = 400;
+
+        }
+
+        camera.lookAt( scene.position );
+        cameraCube.rotation.copy( camera.rotation );
+        renderer.render( sceneCube, cameraCube );
+        renderer.render( scene, camera );
+    }
+
+    function lightButtonHandler() {
+        if(headtracking == 0){
+            headtracking = 1;
+        }else{
+            headtracking = 0;
+        }
+    }
+</script>
+
+</body>
+</html>

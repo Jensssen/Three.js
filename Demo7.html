@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Demo 7</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            color: #000;
+            font-family:Monospace;
+            font-size:13px;
+            text-align:center;
+            font-weight: bold;
+
+            background-color: #fff;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        #info {
+            color:#000;
+            position: absolute;
+            top: 0px; width: 100%;
+            padding: 5px;
+
+        }
+        #Button_back {
+            position: absolute;
+            right: 20px;
+            top: 50px;
+        }
+        a {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+<div id="container"></div>
+
+<input id="Button_back" type="button" value="Back" onclick=window.open("index.html","_self")>
+
+<script src="lib/three.js"></script>
+<script src='js/threex.dynamictexture.js'></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script src="js/threex.rendererstats.js"></script>
+
+
+<script>
+
+    var camera, controls, scene, renderer;
+    var aspect = window.innerWidth / window.innerHeight;
+    var cube;
+    var left_plane,right_plane,top_plane,bottom_plane;
+    var left_wall, top_wall, right_wall, bottom_wall;
+    // Initialise visualised console
+    var my_console  = new THREEx.RendererStats();
+    var axes = {x:0, y:0, z:0, material_axes_x:0, material_axes_y:0, material_axes_z:0};
+
+
+
+    var object_pos = {x: 0, y: 0, z: -100};
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+        // content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+    init();
+    render(); // remove when using next line for animation loop (requestAnimationFrame)
+
+    function init() {
+
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2( 0xcccccc, 0.002 );             //<----- FOG
+
+
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor( scene.fog.color );                    //<----- FOG
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+        var container = document.getElementById( 'container' );
+        container.appendChild( renderer.domElement );
+
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+        camera = new THREE.PerspectiveCamera( 35, aspect, 1, 10000 );
+        camera.position.z = 400;
+
+        //////////////////////////////////////////////////
+        // CONTROLS
+        //////////////////////////////////////////////////
+        controls = new THREE.OrbitControls( camera, renderer.domElement );
+        controls.addEventListener( 'change', render ); // remove when using animation loop
+        controls.enableZoom = true;
+
+
+
+        //////////////////////////////////////////////////
+        // GEOMETRY
+        //////////////////////////////////////////////////
+        var geometry = new THREE.BoxGeometry( 20, 20, 20 );
+        var material = new THREE.MeshBasicMaterial( {color: 0x121212} );
+        cube = new THREE.Mesh( geometry, material );
+        scene.add( cube );
+
+
+        var plane_material = new THREE.MeshBasicMaterial( {color: 0x453518, side: THREE.DoubleSide, wireframe: false} );
+
+        var depth = 100;
+
+        left_plane = new THREE.PlaneGeometry( depth, 126.11*2, 1 );
+        left_wall = new THREE.Mesh( left_plane, plane_material );
+        left_wall.position.set(-126.11*aspect,0,-depth/2);
+        left_wall.rotateY(90*Math.PI/180);
+        scene.add( left_wall );
+
+        top_plane = new THREE.PlaneGeometry( 126.11*2*aspect, depth, 1 );
+        top_wall = new THREE.Mesh( top_plane, plane_material );
+        top_wall.rotateX(-90*Math.PI/180);
+        top_wall.position.set(0,126.11,-depth/2);
+        scene.add( top_wall );
+
+        right_plane = new THREE.PlaneGeometry( depth, 126.11*2, 1 );
+        right_wall = new THREE.Mesh( right_plane, plane_material );
+        right_wall.position.set(126.11*aspect,0,-depth/2);
+        right_wall.rotateY(90*Math.PI/180);
+        scene.add( right_wall );
+
+        bottom_plane = new THREE.PlaneGeometry( 126.11*2*aspect, depth, 1 );
+        bottom_wall = new THREE.Mesh( bottom_plane, plane_material );
+        bottom_wall.position.set(0,-126.11,-depth/2);
+        bottom_wall.rotateX(-90*Math.PI/180);
+
+        scene.add( bottom_wall );
+
+
+        import_all_materials();
+        import_axes(10);
+        //////////////////////////////////////////////////
+        // LIGHT
+        //////////////////////////////////////////////////
+        light = new THREE.DirectionalLight( 0xffffff );
+        light.position.set( 1, 1, 1 );
+        scene.add( light );
+        light = new THREE.DirectionalLight( 0x002288 );
+        light.position.set( -1, -1, -1 );
+        scene.add( light );
+        light = new THREE.AmbientLight( 0x222222 );
+        scene.add( light );
+
+
+        //////////////////////////////////////////////////
+        // CSS positioning of the visualised console
+        //////////////////////////////////////////////////
+        my_console.domElement.style.position   = 'absolute'
+        my_console.domElement.style.left  = '0px'
+        my_console.domElement.style.bottom    = '0px'
+        document.body.appendChild( my_console.domElement )
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+
+
+    function render() {
+
+        //////////////////////////////////////////////////
+        // UPDATE My Console
+        //////////////////////////////////////////////////
+        my_console.update(renderer);
+
+        left_plane.vertices[ 1 ].z = -object_pos.x;
+        left_plane.vertices[ 3 ].z = -object_pos.x;
+        left_plane.vertices[ 1 ].y = 126.11 + object_pos.y;
+        left_plane.vertices[ 3 ].y = -126.11 + object_pos.y;
+
+        right_plane.vertices[ 1 ].z = -object_pos.x;
+        right_plane.vertices[ 3 ].z = -object_pos.x;
+        right_plane.vertices[ 1 ].y = 126.11 + object_pos.y;
+        right_plane.vertices[ 3 ].y = -126.11 + object_pos.y;
+
+        top_plane.vertices[ 1 ].x =   126.11 * 2 - object_pos.x;
+        top_plane.vertices[ 0 ].x = - 125.5  * 2 - object_pos.x;
+        top_plane.vertices[ 1 ].z = object_pos.y;
+        top_plane.vertices[ 0 ].z = object_pos.y;
+
+        bottom_plane.vertices[ 1 ].x = 126.11 * 2 - object_pos.x;
+        bottom_plane.vertices[ 0 ].x = -126.11 * 2 - object_pos.x;
+        bottom_plane.vertices[ 1 ].z = object_pos.y;
+        bottom_plane.vertices[ 0 ].z = object_pos.y;
+
+        left_plane.verticesNeedUpdate = true;
+        right_plane.verticesNeedUpdate = true;
+        top_plane.verticesNeedUpdate = true;
+        bottom_plane.verticesNeedUpdate = true;
+
+        renderer.render( scene, camera );
+        requestAnimationFrame( render );
+
+    }
+
+</script>
+
+</body>
+</html>

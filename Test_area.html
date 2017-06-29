@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<!-- three.js library -->
+<script src="lib/three.js"></script>
+<script src="js/stats.min.js"></script>
+<script src="js/Detector.js"></script>
+<script src="lib/dat.gui.min.js"></script>
+<!-- ar.js -->
+<script src="lib/ar.js"></script>
+
+<body style='margin : 0px;
+    overflow: hidden;
+    font-family: Monospace;'>
+
+<div style='position: absolute;
+top: 10px; width:100%;
+text-align: center;
+z-index: 1;'>
+
+</div>
+<script>
+    //////////////////////////////////////////////////////////////////////////////////
+    //		Init
+    //////////////////////////////////////////////////////////////////////////////////
+    // init renderer
+    var     onRenderFcts = [];
+
+    // run the rendering loop
+    var lastTimeMsec= null;
+    var markerRoot;
+    var SCREEN_WIDTH = window.innerWidth;
+    var SCREEN_HEIGHT = window.innerHeight;
+    var container,stats;
+    var camera, scene;
+    var renderer;
+    var mesh;
+    var mixer, facesClip, bonesClip;
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+    var clock = new THREE.Clock();
+
+    init();
+    animate();
+
+    function init() {
+        renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true
+        });
+
+
+
+        renderer.setClearColor(new THREE.Color('lightgrey'), 0);
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0px';
+        renderer.domElement.style.left = '0px';
+
+        renderer.shadowMap.enabled = true;
+        renderer.gammaInput = true;
+        renderer.gammaOutput = true;
+
+        document.body.appendChild(renderer.domElement);
+        // init scene and camera
+        scene = new THREE.Scene();
+
+        //////////////////////////////////////////////////////////////////////////////////
+        //		Initialize a basic camera
+        //////////////////////////////////////////////////////////////////////////////////
+        camera = new THREE.Camera();
+        scene.add(camera);
+        ////////////////////////////////////////////////////////////////////////////////
+        //          handle arToolkitSource
+        ////////////////////////////////////////////////////////////////////////////////
+        var arToolkitSource = new THREEx.ArToolkitSource({
+            sourceType: 'webcam'
+
+        });
+        arToolkitSource.init(function onReady() {
+        onResize()
+        });
+
+        window.addEventListener('resize', function () {
+            onResize()
+        });
+        function onResize() {
+            arToolkitSource.onResize();
+            arToolkitSource.copySizeTo(renderer.domElement);
+            if (arToolkitContext.arController !== null) {
+                arToolkitSource.copySizeTo(arToolkitContext.arController.canvas)
+            }
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //          initialize arToolkitContext
+        ////////////////////////////////////////////////////////////////////////////////
+
+        // create atToolkitContext
+        var arToolkitContext = new THREEx.ArToolkitContext({
+            cameraParametersUrl: 'data/camera_para.dat',
+            detectionMode: 'mono',
+            maxDetectionRate: 30,
+            canvasWidth: 80 * 3,
+            canvasHeight: 60 * 3
+        });
+        // initialize it
+        arToolkitContext.init(function onCompleted() {
+            // copy projection matrix to camera
+            camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+        });
+        // update artoolkit on every frame
+        onRenderFcts.push(function () {
+            if (arToolkitSource.ready === false)    return
+            arToolkitContext.update(arToolkitSource.domElement)
+        });
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //          Create a ArMarkerControls
+        ////////////////////////////////////////////////////////////////////////////////
+
+        markerRoot = new THREE.Group;
+        scene.add(markerRoot);
+        var artoolkitMarker = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+            type: 'pattern',
+            patternUrl: 'data/patt.hiro'
+        });
+        //////////////////////////////////////////////////////////////////////////////////
+        //		add an object in the scene
+        //////////////////////////////////////////////////////////////////////////////////
+
+        //////////////////////////////////////////////////
+        // LIGHT
+        //////////////////////////////////////////////////
+        scene.add( new THREE.HemisphereLight( 0x111111, 0x444444 ) );
+        var light = new THREE.DirectionalLight( 0xebf3ff, 1.5 );
+        light.position.set( 0, 140, 500 ).multiplyScalar( 1.1 );
+        scene.add( light );
+        light.castShadow = true;
+        light.shadow.mapSize.width = 1024;
+        light.shadow.mapSize.height = 1024;
+        var d = 390;
+        light.shadow.camera.left = -d;
+        light.shadow.camera.right = d;
+        light.shadow.camera.top = d * 1.5;
+        light.shadow.camera.bottom = -d;
+        light.shadow.camera.far = 3500;
+
+
+
+        //////////////////////////////////////////////////
+        // GROUND
+        //////////////////////////////////////////////////
+        var geometry = new THREE.PlaneBufferGeometry( 1, 1 );
+        var material = new THREE.MeshPhongMaterial( { emissive: 0x800008 } );
+
+        var ground = new THREE.Mesh( geometry, material );
+        ground.position.set( 0, 0, 0 );
+        ground.rotation.x = -Math.PI/2;
+        ground.receiveShadow = true;
+       // markerRoot.add(ground);
+
+        //////////////////////////////////////////////////
+        // LOAD MODEL
+        //////////////////////////////////////////////////
+        var loader = new THREE.JSONLoader();
+        loader.load( "js/knight.js", function ( geometry, materials ) {
+            createScene( geometry, materials, 0, 0, 0, 0.1 );
+            var API = {
+                'show model'    	: true,
+            };
+            var gui = new dat.GUI();
+            gui.add( API, 'show model' ).onChange( function() {
+                mesh.visible = true;
+            } );
+            // creates gui folder with tests / examples for the action API
+            var clipControl = function clipControl( gui, mixer, clip, rootObjects ) {
+                var folder = gui.addFolder( "Clip '" + clip.name + "'" ),
+                    root = rootObjects[ 0 ],
+                    action = null,
+                    API = {
+                        'play()': function play() {
+                            action = mixer.clipAction( clip, root );
+                            action.play();
+                        }
+                    };
+                folder.add( API, 'play()' );
+                API[ 'play()' ]();
+            }; // function clipControl
+            clipControl( gui, mixer, bonesClip, [ null, mesh ] );
+            clipControl( gui, mixer, facesClip, [ null, mesh ] );
+        } );
+
+
+
+        /*
+        var geometry = new THREE.CubeGeometry(1, 1, 1);
+        var material = new THREE.MeshNormalMaterial({
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide
+        });
+        var mesh = new THREE.Mesh(geometry, material);
+        mesh.position.y = geometry.parameters.height / 2;
+        markerRoot.add(mesh);
+*/
+        /*
+        // A new Object
+
+        var geometry = new THREE.TorusKnotGeometry(0.3, 0.1, 64, 16);
+        var material = new THREE.MeshNormalMaterial();
+        var mesh = new THREE.Mesh(geometry, material);
+        mesh.position.y = 0.5;
+        markerRoot.add(mesh);
+        */
+
+        onRenderFcts.push(function () {
+        // Rotation or Movements here
+        });
+
+
+        stats = new Stats();
+        document.body.appendChild( stats.dom );
+        // render the scene
+        onRenderFcts.push(function(){
+            renderer.render( scene, camera );
+            stats.update();
+        });
+    }
+
+    function createScene( geometry, materials, x, y, z, s ) {
+        geometry.computeBoundingBox();
+        var bb = geometry.boundingBox;
+        for ( var i = 0; i < materials.length; i ++ ) {
+            var m = materials[ i ];
+            m.skinning = true;
+            m.morphTargets = true;
+            m.specular.setHSL( 0, 0, 0.1 );
+            m.color.setHSL( 0.6, 0, 0.6 );
+        }
+        mesh = new THREE.SkinnedMesh( geometry, materials );
+        mesh.position.set( x, y - bb.min.y * s, z );
+        mesh.scale.set( s, s, s );
+        //mesh.rotation.y =-Math.PI /2;
+        //mesh.rotation.x =-Math.PI /2;
+        markerRoot.add( mesh );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mixer = new THREE.AnimationMixer( mesh );
+        bonesClip = geometry.animations[0];
+        facesClip = THREE.AnimationClip.CreateFromMorphTargetSequence( 'facialExpressions', mesh.geometry.morphTargets, 3 );
+    }
+    //////////////////////////////////////////////////////////////////////////////////
+    //		render the whole thing on the page
+    //////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+    function animate() {
+        requestAnimationFrame( animate );
+        render();
+    }
+    function render() {
+        var delta = 0.75 * clock.getDelta();
+
+        //mesh.rotation.y += 0.01;
+        if( mixer ) {
+            mixer.update( delta );
+        }
+
+        // measure time
+        lastTimeMsec	= lastTimeMsec || -1000/60;
+        var deltaMsec	= Math.min(200,  - lastTimeMsec);
+        // call each update function
+        onRenderFcts.forEach(function(onRenderFct){
+            onRenderFct(deltaMsec/1000)
+        })
+    }
+
+
+
+
+</script></body>

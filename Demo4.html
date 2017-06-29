@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo 4</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: yellow;
+        }
+    </style>
+    <form>
+        <input type="button" onclick=window.open("index.html","_self") value="Back"/>
+    </form>
+
+    <div id="content"></div>
+
+
+</head>
+
+<body>
+
+<canvas id="myCanvas"></canvas>
+<script src="lib/three.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+<script src="lib/OrbitControls.js"></script>
+
+<script type="text/javascript">
+    var axes = {x: 0, y: 0, z: 0, material_axes_x: 0, material_axes_y: 0, material_axes_z: 0};
+    var face = {X_Pos: 0, Y_Pos: 0};
+    var object_pos = {x: 0, y: 0, z: -100};
+    var mesh = {object1: 0, object2:0, object3:0};
+
+    var content = document.getElementById('content');
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = number[0]-320;
+        object_pos.y = number[1]-240;
+        //content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+    // RENDERER
+    renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById('myCanvas')
+    });
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x7c7a7a);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+
+    // SCENE
+    scene = new THREE.Scene();
+
+
+    // CAMERA
+    camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+    //camera.rotation.x = 1.5708;
+    camera.position.set(0, 0, 350);
+    //var newCamera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 300, 10000);
+
+
+
+    // LIGHT
+    var ambient_light = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient_light);
+    function createLight( color ) {
+        var pointLight = new THREE.PointLight( color, 1, 30 );
+        pointLight.castShadow = true;
+        pointLight.shadow.camera.near = 1;
+        pointLight.shadow.camera.far = 30;
+        // pointLight.shadowCameraVisible = true;
+        pointLight.shadow.bias = 0.01;
+        var geometry = new THREE.SphereGeometry( 0.3, 12, 6 );
+        var material = new THREE.MeshBasicMaterial( { color: color } );
+        var sphere = new THREE.Mesh( geometry, material );
+        pointLight.add( sphere );
+        return pointLight
+    }
+    pointLight = createLight( 0xffffff );
+    scene.add( pointLight );
+
+    // MATERIAL
+    import_all_materials();
+
+
+    // Controls
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.update();
+
+
+    // GEOMETRY
+    var textures = {background_texture:0};
+    var materials = {background:0};
+    var meshes = {background:0};
+    import_axes(20)
+    textures.background_texture = new THREE.ImageUtils.loadTexture("textures/Interstellar.jpg");
+
+    textures.background_texture.repeat.set( 1, 1 );
+    materials.background = new THREE.MeshStandardMaterial({ map : textures.background_texture });
+    meshes.background = new THREE.Mesh(new THREE.PlaneGeometry(63, 120), materials.background);
+    meshes.background.material.side = THREE.DoubleSide;
+
+    meshes.background.position.set(0,0,-100);
+    scene.add(meshes.background);
+
+    var planeGeometry = new THREE.PlaneBufferGeometry( 8000, 2000, 32, 32 );
+    var planeMaterial = new THREE.MeshStandardMaterial( { color: 0xffffff } )
+    var plane = new THREE.Mesh( planeGeometry, planeMaterial );
+    plane.position.set(0,0,-350);
+    plane.receiveShadow = true;
+    scene.add( plane );
+
+    var x = 0;
+    var theta = 0;
+    //RENDER LOOP
+    render();
+    function render() {
+
+        var time = performance.now() * 0.001;
+        pointLight.position.x = Math.sin( time ) * 9;
+        pointLight.position.y = Math.sin( time * 1.1 ) * 9 + 5;
+        pointLight.position.z = Math.sin( time * 1.2 ) * 9;
+
+
+        camera.position.x = object_pos.x*2;
+        camera.position.y = object_pos.y*2;
+        camera.lookAt( scene.position );
+
+
+
+        renderer.render(scene, camera);
+        // This method tells the browser that you wish to perform an animation and requestes that the browser
+        // calls a specified function to update an animation before the next repaint.
+        requestAnimationFrame(render);
+    }
+
+
+</script>
+
+</body>
+</html>

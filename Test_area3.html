@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - skinning + morphing [knight]</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            color: #000;
+            font-family:Monospace;
+            font-size:13px;
+            text-align:center;
+            background-color: #fff;
+            margin: 0px;
+            overflow: hidden;
+        }
+        a {
+            color: #0af;
+        }
+    </style>
+</head>
+<body>
+<div id="container"></div>
+<!-- three.js library -->
+<script src="lib/three.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/stats.min.js"></script>
+<script src="lib/dat.gui.min.js"></script>
+
+<!-- ar.js -->
+<script src="lib/ar.js"></script>
+
+<script>
+
+    var SCREEN_WIDTH = window.innerWidth;
+    var SCREEN_HEIGHT = window.innerHeight;
+    var container,stats;
+    var camera, scene;
+    var renderer;
+    var mesh;
+    var mixer, facesClip, bonesClip;
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+    var clock = new THREE.Clock();
+
+    init();
+    animate();
+
+    function init() {
+
+        container = document.getElementById( 'container' );
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+        camera = new THREE.PerspectiveCamera( 30, SCREEN_WIDTH / SCREEN_HEIGHT, 1, 10000 );
+        camera.position.z = 200;
+        camera.position.y = 50;
+
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog( 0xffffff, 2000, 10000 );
+        scene.add( camera );
+
+
+        //////////////////////////////////////////////////
+        // GROUND
+        //////////////////////////////////////////////////
+        var geometry = new THREE.PlaneBufferGeometry( 200, 200 );
+        var material = new THREE.MeshPhongMaterial( { emissive: 0x800008 } );
+
+        var ground = new THREE.Mesh( geometry, material );
+        ground.position.set( 0, 0.5, 0 );
+        ground.rotation.x = -Math.PI/2;
+        scene.add( ground );
+        ground.receiveShadow = true;
+
+
+        //////////////////////////////////////////////////
+        // LIGHT
+        //////////////////////////////////////////////////
+        scene.add( new THREE.HemisphereLight( 0x111111, 0x444444 ) );
+        var light = new THREE.DirectionalLight( 0xebf3ff, 1.5 );
+        light.position.set( 0, 140, 500 ).multiplyScalar( 1.1 );
+        scene.add( light );
+        light.castShadow = true;
+        light.shadow.mapSize.width = 1024;
+        light.shadow.mapSize.height = 1024;
+        var d = 390;
+        light.shadow.camera.left = -d;
+        light.shadow.camera.right = d;
+        light.shadow.camera.top = d * 1.5;
+        light.shadow.camera.bottom = -d;
+        light.shadow.camera.far = 3500;
+
+
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer = new THREE.WebGLRenderer( { antialias: true,         alpha: true } );
+        renderer.setClearColor( scene.fog.color );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+        renderer.domElement.style.position = "relative";
+        container.appendChild( renderer.domElement );
+        renderer.gammaInput = true;
+        renderer.gammaOutput = true;
+        renderer.shadowMap.enabled = true;
+
+
+        //////////////////////////////////////////////////
+        // STATS
+        //////////////////////////////////////////////////
+        stats = new Stats();
+        container.appendChild( stats.dom );
+
+
+        //////////////////////////////////////////////////
+        // LOAD MODEL
+        //////////////////////////////////////////////////
+        var loader = new THREE.JSONLoader();
+        loader.load( "js/knight.js", function ( geometry, materials ) {
+            createScene( geometry, materials, 0, 0.5, -0, 2 );
+            var API = {
+                'show model'    	: true,
+            };
+            var gui = new dat.GUI();
+            gui.add( API, 'show model' ).onChange( function() {
+                mesh.visible = true;
+            } );
+            // creates gui folder with tests / examples for the action API
+            var clipControl = function clipControl( gui, mixer, clip, rootObjects ) {
+                var folder = gui.addFolder( "Clip '" + clip.name + "'" ),
+                    root = rootObjects[ 0 ],
+                    action = null,
+                    API = {
+                        'play()': function play() {
+                            action = mixer.clipAction( clip, root );
+                            action.play();
+                        }
+                    };
+                folder.add( API, 'play()' );
+                API[ 'play()' ]();
+            }; // function clipControl
+            clipControl( gui, mixer, bonesClip, [ null, mesh ] );
+            clipControl( gui, mixer, facesClip, [ null, mesh ] );
+        } );
+        window.addEventListener( 'resize', onWindowResize, false );
+    }
+
+    function onWindowResize() {
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+
+    function createScene( geometry, materials, x, y, z, s ) {
+        geometry.computeBoundingBox();
+        var bb = geometry.boundingBox;
+        for ( var i = 0; i < materials.length; i ++ ) {
+            var m = materials[ i ];
+            m.skinning = true;
+            m.morphTargets = true;
+            m.specular.setHSL( 0, 0, 0.1 );
+            m.color.setHSL( 0.6, 0, 0.6 );
+        }
+        mesh = new THREE.SkinnedMesh( geometry, materials );
+        mesh.position.set( x, y - bb.min.y * s, z );
+        mesh.scale.set( s, s, s );
+        scene.add( mesh );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mixer = new THREE.AnimationMixer( mesh );
+        bonesClip = geometry.animations[0];
+        facesClip = THREE.AnimationClip.CreateFromMorphTargetSequence( 'facialExpressions', mesh.geometry.morphTargets, 3 );
+    }
+
+    function animate() {
+        requestAnimationFrame( animate );
+        stats.begin();
+        render();
+        stats.end();
+    }
+
+    function render() {
+        var delta = 0.75 * clock.getDelta();
+        camera.lookAt( scene.position );
+        if( mixer ) {
+            mixer.update( delta );
+        }
+        renderer.render( scene, camera );
+    }
+
+</script>
+</body>
+</html>

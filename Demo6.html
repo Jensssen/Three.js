@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title> Demo 6 </title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background-color: rgb(0, 0, 0);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #lightButton {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        #Button_back {
+            position: absolute;
+            right: 20px;
+            top: 50px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container"></div>
+<input id="Button_back" type="button" value="Back" onclick=window.open("index.html","_self")>
+
+<script src="lib/three.js"></script>
+<script src="js/ShadowMesh.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="js/Geometry.js"></script>
+<script src="js/Material.js"></script>
+
+<script type="text/javascript">
+    var SCREEN_WIDTH = window.innerWidth;
+    var SCREEN_HEIGHT = window.innerHeight;
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera( 35, SCREEN_WIDTH / SCREEN_HEIGHT, 1, 3000 );
+    var clock = new THREE.Clock();
+    var renderer = new THREE.WebGLRenderer();
+    var sunLight = new THREE.DirectionalLight( 'rgb(255,255,255)', 1 );
+    var arrowDirection = new THREE.Vector3();
+    var arrowPosition1 = new THREE.Vector3();
+    var groundMesh;
+    var lightSphere, lightHolder;
+    var cubeShadow;
+    var normalVector = new THREE.Vector3( 0, 1, 0 );
+    var planeConstant = 0.01; // this value must be slightly higher than the groundMesh's y position of 0.0
+    var groundPlane = new THREE.Plane( normalVector, planeConstant );
+    var lightPosition4D = new THREE.Vector4();
+    var frameTime = 0;
+
+    // WEBSOCKET
+    var object_pos = {x: 0, y: 0, z: -100};
+    var content = document.getElementById('content');
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+        //content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+
+    // START
+    init();
+    animate();
+    function init() {
+
+
+
+        // RENDERER
+        renderer.setClearColor( 'rgb(0,0,0)' );
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+
+        document.getElementById( "container" ).appendChild( renderer.domElement );
+        window.addEventListener( 'resize' , onWindowResize, false );
+
+        // CAMERA
+        camera.position.set(0, 0, 1400);
+        scene.add( camera );
+
+        // CONTROLS
+        var controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1, 0);
+        controls.update();
+
+
+
+
+
+
+
+
+
+        onWindowResize();
+        sunLight.position.set( 0, 0, 10 );
+        sunLight.lookAt( scene.position );
+        scene.add( sunLight );
+
+        lightPosition4D.x = sunLight.position.x;
+        lightPosition4D.y = sunLight.position.y;
+        lightPosition4D.z = sunLight.position.z;
+        lightPosition4D.w = 0.9; // more of a point Light value
+
+
+
+
+
+        // LIGHTBULB
+        var lightSphereGeometry = new THREE.SphereGeometry( 0.09 );
+        var lightSphereMaterial = new THREE.MeshBasicMaterial( { color: 'rgb(255,0,0)' } );
+        lightSphere = new THREE.Mesh( lightSphereGeometry, lightSphereMaterial );
+        lightSphere.position.copy( sunLight.position );
+        scene.add( lightSphere );
+
+
+
+
+        // GROUND
+        var groundGeometry = new THREE.BoxGeometry( 3000, 1, 4000 );
+        var groundMaterial = new THREE.MeshLambertMaterial( { color: 'rgb(0,130,0)' } );
+        groundMesh = new THREE.Mesh( groundGeometry, groundMaterial );
+        groundMesh.rotateX(1.5708);
+        groundMesh.position.y = 0.0; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        groundMesh.material.color.set( 'rgb(255,255,255)' );
+
+        scene.add( groundMesh );
+
+
+
+
+        // GEOMETRY
+
+        var texture_layout_1 = new THREE.ImageUtils.loadTexture("img/Interstellar_1.png");
+        texture_layout_1.repeat.set( 1, 1 );
+        var texture_layout_2 = new THREE.ImageUtils.loadTexture("img/Interstellar_2.png");
+        texture_layout_2.repeat.set( 1, 1 );
+        var texture_layout_3 = new THREE.ImageUtils.loadTexture("img/Interstellar_3.png");
+        texture_layout_3.repeat.set( 1, 1 );
+        var texture_layout_4 = new THREE.ImageUtils.loadTexture("img/Interstellar_4.png");
+        texture_layout_4.repeat.set( 1, 1 );
+        var texture_layout_5 = new THREE.ImageUtils.loadTexture("img/Interstellar_5.png");
+        texture_layout_5.repeat.set( 1, 1 );
+
+
+        var Geometry_layout_1 = new THREE.BoxGeometry( 500, 0.01, 800 );
+        var Material_layout_1 = new THREE.MeshLambertMaterial( { map : texture_layout_1, transparent: true, opacity: 1, color: 0xFF0000 } );
+        var Mesh_layout_1 = new THREE.Mesh( Geometry_layout_1, Material_layout_1 );
+        Mesh_layout_1.position.z = 10; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        Mesh_layout_1.material.color.set( 'rgb(255,255,255)' );
+        Mesh_layout_1.rotateX(-1.5708);
+        scene.add( Mesh_layout_1 );
+
+        var Geometry_layout_2 = new THREE.BoxGeometry( 500, 0.01, 800);
+        var Material_layout_2 = new THREE.MeshLambertMaterial( { map : texture_layout_2, transparent: true, opacity: 1, color: 0xFF0000 } );
+        var Mesh_layout_2 = new THREE.Mesh( Geometry_layout_2, Material_layout_2 );
+        Mesh_layout_2.position.z = 20; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        Mesh_layout_2.material.color.set( 'rgb(255,255,255)' );
+        Mesh_layout_2.rotateX(-1.5708);
+
+        scene.add( Mesh_layout_2 );
+
+        var Geometry_layout_3 = new THREE.BoxGeometry( 500, 0.01, 800 );
+        var Material_layout_3 = new THREE.MeshLambertMaterial( { map : texture_layout_3, transparent: true, opacity: 1, color: 0xFF0000 } );
+        var Mesh_layout_3 = new THREE.Mesh( Geometry_layout_3, Material_layout_3 );
+        Mesh_layout_3.position.z = 30; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        Mesh_layout_3.material.color.set( 'rgb(255,255,255)' );
+        Mesh_layout_3.rotateX(-1.5708);
+
+        scene.add( Mesh_layout_3 );
+
+        var Geometry_layout_4 = new THREE.BoxGeometry( 500, 0.01, 800 );
+        var Material_layout_4 = new THREE.MeshLambertMaterial( { map : texture_layout_4, transparent: true, opacity: 1, color: 0xFF0000 } );
+        var Mesh_layout_4 = new THREE.Mesh( Geometry_layout_4, Material_layout_4 );
+        Mesh_layout_4.position.z = 60; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        Mesh_layout_4.material.color.set( 'rgb(255,255,255)' );
+        Mesh_layout_4.rotateX(-1.5708);
+
+        scene.add( Mesh_layout_4 );
+
+        var Geometry_layout_5 = new THREE.BoxGeometry( 500, 0.01, 800 );
+        var Material_layout_5 = new THREE.MeshLambertMaterial( { map : texture_layout_5, transparent: true, opacity: 1, color: 0xFF0000 } );
+        var Mesh_layout_5 = new THREE.Mesh( Geometry_layout_5, Material_layout_5 );
+        Mesh_layout_5.position.z = 120; //this value must be slightly lower than the planeConstant (0.01) parameter above
+        Mesh_layout_5.material.color.set( 'rgb(255,255,255)' );
+        Mesh_layout_5.rotateX(-1.5708);
+
+        scene.add( Mesh_layout_5 );
+
+
+
+
+
+
+    }
+    function animate() {
+        requestAnimationFrame( animate );
+        frameTime = clock.getDelta();
+
+        camera.position.y = object_pos.y*2;
+        camera.position.x = object_pos.x*2;
+        camera.lookAt( scene.position );
+
+        // update the ShadowMeshes to follow their shadow-casting objects
+        //cubeShadow.update( groundPlane, lightPosition4D );
+        renderer.render( scene, camera );
+    }
+    function onWindowResize() {
+        SCREEN_WIDTH = window.innerWidth;
+        SCREEN_HEIGHT = window.innerHeight;
+        renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+        camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+        camera.updateProjectionMatrix();
+    }
+
+    function import_axes(length) {
+
+        var axes = {x: 0, y: 0, z: 0, material_axes_x: 0, material_axes_y: 0, material_axes_z: 0};
+        axes.material_axes_x = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+        });
+        axes.material_axes_y = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+        });
+        axes.material_axes_z = new THREE.MeshBasicMaterial({
+            color: 0x0000ff,
+        });
+
+        // X-AXES
+        var cylinder_x = new THREE.CylinderGeometry(3, 3, (length * 2));
+        var cone_x = new THREE.ConeGeometry(length / 2, 20, 32);
+        var cylinder_mesh_x = new THREE.Mesh(cylinder_x, axes.material_axes_x);
+        var cone_mesh_x = new THREE.Mesh(cone_x, axes.material_axes_x);
+        cylinder_mesh_x.position.x = length;
+        cylinder_mesh_x.rotateZ(1.5708);
+        cone_mesh_x.position.x = (length * 2 + 10);
+        cone_mesh_x.rotateZ(-1.5708);
+        // X-AXES
+        var cylinder_y = new THREE.CylinderGeometry(3, 3, (length * 2));
+        var cone_y = new THREE.ConeGeometry(length / 2, 20, 32);
+        var cylinder_mesh_y = new THREE.Mesh(cylinder_y, axes.material_axes_y);
+        var cone_mesh_y = new THREE.Mesh(cone_y, axes.material_axes_y);
+        cylinder_mesh_y.position.y = length;
+        cone_mesh_y.position.y = (length * 2 + 10);
+        // Z-AXES
+        var cylinder_z = new THREE.CylinderGeometry(3, 3, (length * 2));
+        var cone_z = new THREE.ConeGeometry(length / 2, 20, 32);
+        var cylinder_mesh_z = new THREE.Mesh(cylinder_z, axes.material_axes_z);
+        var cone_mesh_z = new THREE.Mesh(cone_z, axes.material_axes_z);
+        cylinder_mesh_z.position.z = length;
+        cylinder_mesh_z.rotateX(1.5708);
+
+        cone_mesh_z.position.z = (length * 2 + 10);
+        cone_mesh_z.rotateX(1.5708);
+
+
+        axes.x = new THREE.Object3D();
+        axes.y = new THREE.Object3D();
+        axes.z = new THREE.Object3D();
+
+        axes.x.add(cylinder_mesh_x, cone_mesh_x);
+        axes.y.add(cylinder_mesh_y, cone_mesh_y);
+
+        axes.z.add(cylinder_mesh_z, cone_mesh_z);
+
+        scene.add(axes.x);
+        scene.add(axes.y);
+        scene.add(axes.z);
+    }
+
+</script>
+</body>
+</html>

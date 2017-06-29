@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>three.js css3d - youtube</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        #switch_to_headtracking {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        #blocker {
+            position: absolute;
+            /* background-color: rgba(255, 0, 0, 0.5); */
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<script src="lib/three.js"></script>
+<script src="js/TrackballControls.js"></script>
+<script src="js/CSS3DRenderer.js"></script>
+
+<div id="container"></div>
+<div id="blocker"></div>
+<input id="switch_to_headtracking" type="button" value="Switch to Headtracking" onclick="lightButtonHandler()">
+
+<script>
+
+    var camera, scene, renderer1, renderer2;
+    var controls;
+    var headtracking = 0;
+
+    var Element = function ( id, x, y, z, ry ) {
+
+        var div = document.createElement( 'div' );
+        div.style.width = '530px';
+        div.style.height = '300px';
+        div.style.backgroundColor = '#000';
+
+        var iframe = document.createElement( 'iframe' );
+        iframe.style.width = '530px';
+        iframe.style.height = '300px';
+        iframe.style.border = '0px';
+        iframe.src = [ 'https://www.youtube.com/embed/', id, '?rel=0' ].join( '' );
+        div.appendChild( iframe );
+
+        var object = new THREE.CSS3DObject( div );
+        object.position.set( x, y, z );
+        object.rotation.y = ry;
+
+        return object;
+    };
+    //////////////////////////////////////////////////
+    // WEB SOCKETS
+    //////////////////////////////////////////////////
+    var object_pos = {x: 0, y: 0, z: -100};
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+        // content.innerHTML = "X_Pos: " + number[0] + "<br> Y_Pos: " + number[1];
+
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+    init();
+    animate();
+
+    function init() {
+
+        var container = document.getElementById( 'container' );
+
+
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer1 = new THREE.CSS3DRenderer();
+        renderer1.setSize( window.innerWidth, window.innerHeight );
+        renderer1.domElement.style.position = 'absolute';
+        renderer1.domElement.style.top = 0;
+        container.appendChild( renderer1.domElement );
+
+        renderer2 = new THREE.WebGLRenderer( { antialias: false } );
+        renderer2.setClearColor( 0xffffff );
+        renderer2.setPixelRatio( window.devicePixelRatio );
+        renderer2.setSize( window.innerWidth, window.innerHeight  );
+        container.appendChild( renderer2.domElement );
+
+        //document.body.appendChild( renderer2.domElement );
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+        scene.add( Element( 'O80FAcW0Wxs', -5, 180, 0, 0 ) );
+
+
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+        camera = new THREE.PerspectiveCamera( 35, window.innerWidth / window.innerHeight, 1, 5000 );
+        camera.position.set( 0, 0, 1500 );
+
+
+
+
+        //////////////////////////////////////////////////
+        // CONTROLS
+        //////////////////////////////////////////////////
+        controls = new THREE.TrackballControls( camera );
+        controls.rotateSpeed = 4;
+
+
+        //////////////////////////////////////////////////
+        // GEOMETRY
+        //////////////////////////////////////////////////
+        var top_texture = new THREE.TextureLoader().load( 'img/Foodist/Top.jpg' );
+        var bottom_texture = new THREE.TextureLoader().load( 'img/Foodist/Bottom.jpg' );
+
+        var geometry2 = new THREE.BoxGeometry( 540, 120, 50 );
+        var material2 = new THREE.MeshBasicMaterial( {map: top_texture} );
+        var cube2 = new THREE.Mesh( geometry2, material2 );
+        cube2.position.set(0,410,0);
+        //cube2.rotateX(Math.PI/10);
+        scene.add( cube2 );
+
+        var geometry3 = new THREE.BoxGeometry( 530,480, 50 );
+        var material3 = new THREE.MeshBasicMaterial( {map: bottom_texture} );
+        var cube3 = new THREE.Mesh( geometry3, material3 );
+        cube3.position.set(0,-215,0);
+        //cube3.rotateX(Math.PI/10);
+        scene.add( cube3 );
+
+
+
+
+        window.addEventListener( 'resize', onWindowResize, false );
+
+        // Block iframe events when dragging camera
+
+        var blocker = document.getElementById( 'blocker' );
+        blocker.style.display = 'none';
+
+        document.addEventListener( 'mousedown', function () { blocker.style.display = ''; } );
+        document.addEventListener( 'mouseup', function () { blocker.style.display = 'none'; } );
+
+    }
+
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer1.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        //////////////////////////////////////////////////
+        // Turn Head Tracking on and off
+        //////////////////////////////////////////////////
+        if(headtracking == 1){
+            camera.position.x = object_pos.x/10;
+            camera.position.y = object_pos.y/10;
+            camera.lookAt( scene.position );
+            camera.position.z = 1500;
+
+        }else{
+            controls.update();
+        }
+
+        renderer1.render( scene, camera );
+        renderer2.render( scene, camera );
+
+    }
+    function lightButtonHandler() {
+        if(headtracking == 0){
+            headtracking = 1;
+        }else{
+            headtracking = 0;
+        }
+    }
+
+</script>
+</body>
+</html>

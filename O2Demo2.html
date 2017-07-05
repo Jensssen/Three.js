@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>O2 Demo</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background:#777;
+            padding:0;
+            margin:0;
+            font-weight: bold;
+            overflow:hidden;
+        }
+    </style>
+</head>
+<body>
+<div id="container"></div>
+<script src="lib/three.js"></script>
+<script src="js/StereoEffect.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/threex.rendererstats.js"></script>
+
+<!-- Text includes -->
+<script src="js/utils/GeometryUtils.js"></script>
+<script src="js/stats.min.js"></script>
+
+<script>
+
+    var camera, scene, renderer, effect;
+    var spheres = [];
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+    var my_console  = new THREEx.RendererStats();
+
+
+    // TEXT VARIABLES
+    var stats;
+    var radius = 300;
+    var predator;
+    var textMesh1, textGeo, materials;
+    var text1 = "",
+        text2 = "",
+        text3 = "",
+        height = 200, // Texttiefe
+        hover = -1000, // y-position
+        text_distance = -1000,
+        curveSegments = 32,
+        bevelThickness = 2,
+        bevelSize = 1.5,
+        bevelEnabled = true,
+        font = undefined;
+
+    //////////////////////////////////////////////////
+    // WEB SOCKETS
+    //////////////////////////////////////////////////
+    var object_pos = {x: 0, y: 0, z: -100};
+    var socket = new WebSocket('ws://localhost:3000');
+    var number;
+    socket.onopen = function () {
+        socket.send('hello from the client');
+    };
+
+    socket.onmessage = function (message) {
+        number = message.data.split(",");
+        object_pos.x = -number[0]+320;
+        object_pos.y = -number[1]+240;
+    };
+
+    socket.onerror = function (error) {
+        console.log('WebSocket error: ' + error);
+    };
+
+
+    init();
+    animate();
+
+    function init() {
+
+        var container = document.getElementById( 'container' );
+        //////////////////////////////////////////////////
+        // RENDERER
+        //////////////////////////////////////////////////
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        container.appendChild( renderer.domElement );
+
+        //////////////////////////////////////////////////
+        // SCENE
+        //////////////////////////////////////////////////
+        scene = new THREE.Scene();
+        scene.background = new THREE.CubeTextureLoader()
+            .setPath( 'img/testcube/' )
+            .load( [ 'px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg' ] );
+
+        //////////////////////////////////////////////////
+        // CAMERA
+        //////////////////////////////////////////////////
+        camera = new THREE.PerspectiveCamera( 93, window.innerWidth / window.innerHeight, 1, 100000 );
+        camera.position.z = 3200;
+
+        //////////////////////////////////////////////////
+        // LIGHT
+        //////////////////////////////////////////////////
+        var dirLight = new THREE.DirectionalLight( 0xffffff, 0.125 );
+        dirLight.position.set( 0, 0, 1 ).normalize();
+        scene.add( dirLight );
+        var pointLight = new THREE.PointLight( 0xffffff, 1.5 );
+        pointLight.position.set( 0, 100, 90 );
+        scene.add( pointLight );
+
+        //////////////////////////////////////////////////
+        // CONTROLS
+        //////////////////////////////////////////////////
+        var controls = new THREE.OrbitControls(camera, renderer.domElement);
+       // controls.minDistance = 500;
+       // controls.maxDistance = 2500;
+        controls.update();
+
+        //////////////////////////////////////////////////
+        // GEOMETRY -> Bubbles
+        //////////////////////////////////////////////////
+        var geometry = new THREE.SphereBufferGeometry( 80, 80, 16 );
+        var textureCube = new THREE.CubeTextureLoader()
+            .setPath( 'img/testcube/' )
+            .load( [ 'px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg' ] );
+        textureCube.mapping = THREE.CubeRefractionMapping;
+        var material = new THREE.MeshBasicMaterial( { color: 0xffffff, envMap: textureCube, refractionRatio: 0.95 } );
+
+        for ( var i = 0; i < 1000; i ++ ) {
+            var mesh = new THREE.Mesh( geometry, material );
+            mesh.position.x = Math.random() * 4000 - 2000;
+            mesh.position.y = Math.random() * 2000 - 1000;
+            mesh.position.z = Math.random() * 2000 - 1000 ;
+            mesh.scale.x = mesh.scale.y = mesh.scale.z = Math.random() * 3 + 1;
+            scene.add( mesh );
+            spheres.push( mesh );
+        }
+
+        //////////////////////////////////////////////////
+        // GEOMETRY -> TEXT
+        //////////////////////////////////////////////////
+        materials = [
+            new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading } ), // front
+            new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.SmoothShading } ) // side
+        ];
+        loadFont();
+        // STATS
+        stats = new Stats();
+
+
+
+
+
+
+        var geometry = new THREE.CylinderBufferGeometry( radius, radius,2, 32 );
+        var material = new THREE.MeshBasicMaterial( {color: 0xffffff, wireframe: true} );
+        predator = new THREE.Mesh( geometry, material );
+        predator.rotateX(Math.PI/2);
+        //scene.add( predator );
+
+
+
+
+
+        //////////////////////////////////////////////////
+        // CSS positioning of the visualised console
+        //////////////////////////////////////////////////
+        my_console.domElement.style.position   = 'absolute';
+        my_console.domElement.style.left  = '0px';
+        my_console.domElement.style.bottom    = '0px';
+        document.body.appendChild( my_console.domElement );
+
+
+        //////////////////////////////////////////////////
+        // BUBBLEEFFECT)
+        //////////////////////////////////////////////////
+        effect = new THREE.StereoEffect( renderer );
+        effect.setSize( window.innerWidth, window.innerHeight );
+        window.addEventListener( 'resize', onWindowResize, false );
+    }
+
+
+    function loadFont() {
+
+        var loader = new THREE.FontLoader();
+        loader.load( 'fonts/helvetiker_bold.typeface.json', function ( response ) {
+            font = response;
+            createText(1200,text1,-1700,hover+600,text_distance);
+            createText(300,text2,-1000,hover+550,text_distance);
+            createText(600,text3,750,hover+550,text_distance);
+
+        } );
+    }
+
+    function createText(size,text,x,y,z) {
+
+        textGeo = new THREE.TextBufferGeometry( text, {
+            font: font,
+            size: size,
+            height: height,
+            curveSegments: curveSegments,
+            bevelThickness: bevelThickness,
+            bevelSize: bevelSize,
+            bevelEnabled: bevelEnabled,
+            material: 0,
+            extrudeMaterial: 1
+        });
+
+        textGeo.computeBoundingBox();
+        textGeo.computeVertexNormals();
+
+        var centerOffset = -0.5 * ( textGeo.boundingBox.max.x - textGeo.boundingBox.min.x );
+        textMesh1 = new THREE.Mesh( textGeo, materials );
+        textMesh1.position.x = x + centerOffset;
+        textMesh1.position.y = y;
+        textMesh1.position.z = z;
+        textMesh1.rotation.y = Math.PI * 2;
+        scene.add( textMesh1 );
+    }
+
+    function onWindowResize() {
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        effect.setSize( window.innerWidth, window.innerHeight );
+    }
+
+    function animate() {
+        requestAnimationFrame( animate );
+        render();
+        stats.update();
+        //////////////////////////////////////////////////
+        // UPDATE My Console
+        //////////////////////////////////////////////////
+        my_console.update(renderer);
+
+    }
+
+    var D;
+    var X;
+    var i;
+    var Y;
+    var facex;
+    var facey;
+    function render() {
+        var timer = 0.00003 * Date.now();
+        camera.lookAt( scene.position );
+
+        facex = object_pos.x*10;
+        facey = object_pos.y*10;
+
+        for ( i = 0, il = spheres.length; i < il; i ++ ) {
+            var sphere = spheres[ i ];
+           // sphere.position.x = 5000 * Math.cos( timer + i );
+            sphere.position.y = 10000 * Math.sin( timer + i * 1.1 );
+            Y = facey - sphere.position.y;
+            X = facex - sphere.position.x;
+            D = Math.sqrt(Math.pow(X,2) + Math.pow(Y,2));
+
+            if(D <= 1000){
+                if(object_pos.x <= sphere.position.x) {
+                    sphere.position.x += 15;
+                }
+                else{
+                    sphere.position.x -=15;
+                }
+            }
+        }
+
+        predator.position.set(object_pos.x*10,object_pos.y*10,0);
+
+        effect.render( scene, camera );
+    }
+
+</script>
+</body>
+</html>

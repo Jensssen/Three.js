@@ -60,7 +60,7 @@ THREEx.RendererStats	= function (){
 			msTexts[i++].textContent = "Rot_X: "	+ Math.round(camera.rotation.x*180/Math.PI);
 			msTexts[i++].textContent = "Rot_Y: "	+ Math.round(camera.rotation.y*180/Math.PI);
 			msTexts[i++].textContent = "Rot_Z: "	+ Math.round(camera.rotation.z*180/Math.PI);
-			msTexts[i++].textContent = "Points: "	+000;
+			msTexts[i++].textContent = "Points: "	+ i;
 		}
 	}
 };

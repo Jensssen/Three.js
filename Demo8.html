@@ -164,13 +164,13 @@
         //////////////////////////////////////////////////
         // CSS positioning of the visualised console
         //////////////////////////////////////////////////
-        my_console.domElement.style.position   = 'absolute'
-        my_console.domElement.style.left  = '0px'
-        my_console.domElement.style.bottom    = '0px'
+        my_console.domElement.style.position   = 'absolute';
+        my_console.domElement.style.left  = '0px';
+        my_console.domElement.style.bottom    = '0px';
 
         renderer.setFaceCulling( THREE.CullFaceNone );
         document.body.appendChild( renderer.domElement );
-        document.body.appendChild( my_console.domElement )
+        document.body.appendChild( my_console.domElement );
         window.addEventListener( 'resize', onWindowResize, false );
     }
     function onWindowResize() {

@@ -52,9 +52,9 @@ THREEx.RendererStats	= function (){
 
 			var i	= 0;
 			msTexts[i++].textContent = "== Face Pos ===";
-			msTexts[i++].textContent = "X: "	+ absolute;//object_pos.x;
-			msTexts[i++].textContent = "Y: "    + alpha;//object_pos.y;
-			msTexts[i++].textContent = "Z: "	+ beta;
+			msTexts[i++].textContent = "X: "	+ object_pos.x;
+			msTexts[i++].textContent = "Y: "    + object_pos.y;
+			msTexts[i++].textContent = "Z: "	+ 0;
 
 			msTexts[i++].textContent = "=== Cam Rot ====";
 			msTexts[i++].textContent = "Rot_X: "	+ Math.round(camera.rotation.x*180/Math.PI);

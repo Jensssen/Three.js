@@ -25,6 +25,10 @@
     </style>
 </head>
 <body>
+<pre class="output">
+    beta: null
+    gamma: null
+</pre>
 <div id="container"></div>
 <input id="switch_to_headtracking" type="button" value="Switch to Headtracking" onclick="lightButtonHandler()">
 <input id="Button_back" type="button" value="Back" onclick=window.open("index.html","_self")>
@@ -39,21 +43,19 @@
 <script src="js/utils/GeometryUtils.js"></script>
 <script src="js/stats.min.js"></script>
 
-
-
-
 <script>
+    var output = document.querySelector('.output');
+    function handleOrientation(event) {
+        var x = event.beta;  // In degree in the range [-180,180]
+        var y = event.gamma; // In degree in the range [-90,90]
+        output.innerHTML  = "beta : " + x + "\n";
+        output.innerHTML += "gamma: " + y + "\n";
+    }
+    window.addEventListener('deviceorientation', handleOrientation);
 
 
 
-
-
-
-
-
-
-
-
+    
     var camera, scene, renderer, effect;
     var spheres = [];
     var windowHalfX = window.innerWidth / 2;
@@ -61,7 +63,6 @@
     var my_console  = new THREEx.RendererStats();
     var headtracking = 0;
     var mobile_phone = 0;
-
 
 
     // TEXT VARIABLES
@@ -110,6 +111,7 @@
 
         if( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ) {
             mobile_phone = 1;
+            window.addEventListener("deviceorientation", handleOrientation, true);
         }
 
         var container = document.getElementById( 'container' );
@@ -197,19 +199,6 @@
 
 
 
-        if (window.DeviceOrientationEvent) {
-            window.addEventListener('deviceorientation', function(eventData) {
-                // gamma is the left-to-right tilt in degrees
-                console.log(eventData.gamma);
-
-                // beta is the front-to-back tilt in degrees
-                console.log(eventData.beta);
-
-
-                // alpha is the compass direction the device is facing in degrees
-                console.log(eventData.alpha);
-            }, false);
-        }
 
 
         //////////////////////////////////////////////////
@@ -228,14 +217,7 @@
         effect.setSize( window.innerWidth, window.innerHeight );
         window.addEventListener( 'resize', onWindowResize, false );
     }
-    function handleOrientation(event) {
-        absolute = event.absolute;
-        alpha    = event.alpha;
-        beta     = event.beta;
-        var gamma    = event.gamma;
 
-        // Do stuff with the new orientation data
-    }
 
     function loadFont() {
 
